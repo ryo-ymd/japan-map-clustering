@@ -3,7 +3,6 @@ import folium
 import numpy as np
 import point_calc
 from sklearn.cluster import KMeans, DBSCAN
-import scipy.spatial.distance as ssd
 import networkx as nx
 
 
@@ -12,28 +11,23 @@ def mark_as_circle():
         'red',
         'blue',
         'darkred',
-        'lightred',
         'orange',
         'green',
         'darkgreen',
-        'lightgreen',
         'darkblue',
-        'lightblue',
         'purple',
-        'darkpurple',
-        'pink',
         'cadetblue',
     ]
 
     for lat, lng, name, cluster in zip(df['latitude'], df['longitude'], df['name'], df['cluster_id']):
         if cluster is None:
             color = 'gray'
-            size = 5
+            size = 3
         elif cluster == -1:
             color = 'black'
-            size = 5
+            size = 3
         else:
-            color = colors_array[(cluster - 1) % 14]
+            color = colors_array[(cluster - 1) % len(colors_array)]
             size = 10
 
         folium.CircleMarker(
@@ -64,7 +58,7 @@ def k_means():
     # 行列を転置
     cust_array = cust_array.T
 
-    kclusters = 10
+    kclusters = 30
     # K-means実行
     pred = KMeans(
         n_clusters=kclusters,
@@ -88,7 +82,7 @@ def dbscan():
 
     # DBSCAN実行
     pred = DBSCAN(
-        eps=0.25,
+        eps=0.09,
         min_samples=2
     ).fit_predict(cust_array)
 
@@ -111,21 +105,24 @@ def chatGPTStyle():
         G.add_node(i)
         for j, p2 in enumerate(cust_array[i+1:], i+1):
             # 障害物が存在する場合、ノード間を接続しない
+            print(f'calc {p1} {p2}')
             if point_calc.calculate_move_ease_of_two_points_osm(p1.tolist(), p2.tolist()) > 0:
                 dist = np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
                 G.add_edge(i, j, weight=dist)
 
-    # DBSCANでクラスタリングする
-    epsilon = 0.1
-    min_samples = 10
-    adj_matrix = nx.to_numpy_matrix(G)
-    dist_matrix = ssd.squareform(ssd.pdist(adj_matrix))
-    pred = DBSCAN(eps=epsilon, min_samples=min_samples, metric='precomputed').fit(dist_matrix)
+    nx.draw(G, with_labels=True)
 
-    df['cluster_id'] = pred
-    df.head()
-
-    mark_as_circle()
+    # # DBSCANでクラスタリングする
+    # epsilon = 0.1
+    # min_samples = 10
+    # adj_matrix = nx.to_numpy_matrix(G)
+    # dist_matrix = ssd.squareform(ssd.pdist(adj_matrix))
+    # pred = DBSCAN(eps=epsilon, min_samples=min_samples, metric='precomputed').fit(dist_matrix)
+    #
+    # df['cluster_id'] = pred
+    # df.head()
+    #
+    # mark_as_circle()
 
 
 df = pd.read_csv('homes.csv', usecols=[0, 1, 2, 3])
@@ -139,8 +136,8 @@ map_japan = folium.Map(
     zoom_start=6,
 )
 
-chatGPTStyle()
-# dbscan()
+# chatGPTStyle()
+dbscan()
 # k_means()
 # mark_as_circle()
-map_japan.save('home-map.html')
+map_japan.save('home-map10.html')

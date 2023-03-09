@@ -4,8 +4,9 @@ from geopy.distance import geodesic
 
 
 def create_bounding_box(point_a, point_b):
-    lat_diff = abs(point_a.y - point_b.y) * 1.1 / 2  # 10%余裕を持たせて10km分の差分を求める
-    lon_diff = abs(point_a.x - point_b.x) * 1.1 / 2  # 10%余裕を持たせて10km分の差分を求める
+    # 10km分の差分を求める
+    lat_diff = abs(point_a.y - point_b.y) / 111.0 * 0.1
+    lon_diff = abs(point_a.x - point_b.x) / 91.0 * 0.1
 
     min_lat = min(point_a.y, point_b.y) - lat_diff
     max_lat = max(point_a.y, point_b.y) + lat_diff

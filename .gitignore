@@ -3,3 +3,5 @@ address-home-clsuter.iml
 home-map.html
 homes.csv
 japan-latest.osm.pbf
+/__pycache__/
+*.html
