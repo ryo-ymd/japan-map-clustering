@@ -3,9 +3,8 @@ import folium
 import numpy as np
 import point_calc
 from sklearn.cluster import KMeans, DBSCAN
-import pyrosm
+import scipy.spatial.distance as ssd
 import networkx as nx
-from geopy.distance import geodesic
 
 
 def mark_as_circle():
@@ -106,20 +105,21 @@ def chatGPTStyle():
     # 行列を転置
     cust_array = cust_array.T
 
-    # 距離行列を作成する
-    n_samples = cust_array.shape[0]
-    dist_matrix = np.zeros((n_samples, n_samples))
-    for i in range(n_samples):
-        for j in range(i + 1, n_samples):
-            dist_matrix[i, j] = point_calc.calculate_move_ease_of_two_points_osm(
-                [cust_array[i, 0], cust_array[i, 1]],
-                [cust_array[j, 0], cust_array[j, 1]]
-            )
-            dist_matrix[j, i] = dist_matrix[i, j]
+    # ネットワークの作成
+    G = nx.Graph()
+    for i, p1 in enumerate(cust_array):
+        G.add_node(i)
+        for j, p2 in enumerate(cust_array[i+1:], i+1):
+            # 障害物が存在する場合、ノード間を接続しない
+            if point_calc.calculate_move_ease_of_two_points_osm(p1.tolist(), p2.tolist()) > 0:
+                dist = np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+                G.add_edge(i, j, weight=dist)
 
     # DBSCANでクラスタリングする
     epsilon = 0.1
     min_samples = 10
+    adj_matrix = nx.to_numpy_matrix(G)
+    dist_matrix = ssd.squareform(ssd.pdist(adj_matrix))
     pred = DBSCAN(eps=epsilon, min_samples=min_samples, metric='precomputed').fit(dist_matrix)
 
     df['cluster_id'] = pred

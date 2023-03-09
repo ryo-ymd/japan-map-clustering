@@ -1,30 +1,43 @@
-import pyrosm
-import networkx as nx
+import osmread
+from shapely.geometry import Point, LineString
 from geopy.distance import geodesic
 
 
-# made by ChatGPT
 def calculate_move_ease_of_two_points_osm(point_a, point_b):
-    # OpenStreetMapのデータをダウンロード
-    bbox = [point_a[1], point_a[0], point_b[1], point_b[0]]
-    osm = pyrosm.OSM(filepath="japan-latest.osm.pbf", bounding_box=bbox)
+    # japan-latest.osm.pbfのファイルパス
+    filepath = "japan-latest.osm.pbf"
 
-    # OSMのネットワークグラフを作成
-    G = nx.MultiDiGraph()
-    nodes, edges = osm.get_network(nodes=True, network_type="driving")
-    G.add_nodes_from(nodes.items())
-    G.add_edges_from(edges)
+    # 地点Aと地点BをPointオブジェクトに変換
+    point_a = Point(point_a[1], point_a[0])
+    point_b = Point(point_b[1], point_b[0])
 
-    # 2地点間の距離と最短経路を計算
-    distance = geodesic(point_a, point_b).km
-    try:
-        shortest_path = nx.shortest_path(G, source=point_a, target=point_b, weight="length")
-    except nx.NetworkXNoPath:
-        return 0.0
+    # 地点Aと地点Bの距離を計算
+    distance = geodesic((point_a.y, point_a.x), (point_b.y, point_b.x)).km
+
+    # 地点Aと地点Bを結ぶ直線を作成
+    line = LineString([point_a, point_b])
+
+    # japan-latest.osm.pbfから地点Aと地点Bの間の道路データを取得
+    road_data = []
+    for entity in osmread.parse_file(filepath):
+        if isinstance(entity, osmread.Way) and 'highway' in entity.tags:
+            for i in range(len(entity.nodes) - 1):
+                node_a = (entity.nodes[i].lat, entity.nodes[i].lon)
+                node_b = (entity.nodes[i + 1].lat, entity.nodes[i + 1].lon)
+                road_line = LineString([Point(node_a), Point(node_b)])
+                if road_line.intersects(line):
+                    road_data.append((entity.tags['highway'], node_a, node_b))
+
+    # 地点Aから地点Bへの移動経路がなければ移動不可として-1.0を返す
+    if not road_data:
+        return -1.0
 
     # 移動簡易性を計算
-    ease_of_move = 1.0 - (len(shortest_path) * 0.1 / distance)
+    road_length = 0
+    for data in road_data:
+        road_length += geodesic(data[1], data[2]).km
+    ease_of_move = 1.0 - (road_length * 0.1 / distance)
     if ease_of_move < 0:
         ease_of_move = 0.0
 
-    return ease_of_move
+    return road_length
