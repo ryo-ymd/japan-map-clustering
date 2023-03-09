@@ -1,11 +1,8 @@
+import time
 import pandas as pd
 import folium
 import numpy as np
-import point_calc
 from sklearn.cluster import KMeans, DBSCAN
-import pyrosm
-import networkx as nx
-from geopy.distance import geodesic
 
 
 def mark_as_circle():
@@ -13,28 +10,23 @@ def mark_as_circle():
         'red',
         'blue',
         'darkred',
-        'lightred',
         'orange',
         'green',
         'darkgreen',
-        'lightgreen',
         'darkblue',
-        'lightblue',
         'purple',
-        'darkpurple',
-        'pink',
         'cadetblue',
     ]
 
     for lat, lng, name, cluster in zip(df['latitude'], df['longitude'], df['name'], df['cluster_id']):
         if cluster is None:
             color = 'gray'
-            size = 5
+            size = 3
         elif cluster == -1:
             color = 'black'
-            size = 5
+            size = 3
         else:
-            color = colors_array[(cluster - 1) % 14]
+            color = colors_array[(cluster - 1) % len(colors_array)]
             size = 10
 
         folium.CircleMarker(
@@ -58,17 +50,15 @@ def mark_as_marker():
 
 
 # ref: https://qiita.com/nyax/items/1fd73d4c84481b918e83
-def k_means():
+def k_means(k_clusters):
     # Numpyの行列に変換
     cust_array = np.array([df['latitude'].tolist(),
                            df['longitude'].tolist()])
     # 行列を転置
     cust_array = cust_array.T
-
-    kclusters = 10
     # K-means実行
     pred = KMeans(
-        n_clusters=kclusters,
+        n_clusters=k_clusters,
         n_init='auto'
     ).fit_predict(cust_array)
 
@@ -80,7 +70,7 @@ def k_means():
 
 
 # ref: https://helve-blog.com/posts/python/sklearn-dbscan/
-def dbscan():
+def dbscan(eps, min_samples):
     # Numpyの行列に変換
     cust_array = np.array([df['latitude'].tolist(),
                            df['longitude'].tolist()])
@@ -89,38 +79,9 @@ def dbscan():
 
     # DBSCAN実行
     pred = DBSCAN(
-        eps=0.25,
-        min_samples=2
+        eps=eps,
+        min_samples=min_samples
     ).fit_predict(cust_array)
-
-    df['cluster_id'] = pred
-    df.head()
-
-    mark_as_circle()
-
-
-def chatGPTStyle():
-    # Numpyの行列に変換
-    cust_array = np.array([df['latitude'].tolist(),
-                           df['longitude'].tolist()])
-    # 行列を転置
-    cust_array = cust_array.T
-
-    # 距離行列を作成する
-    n_samples = cust_array.shape[0]
-    dist_matrix = np.zeros((n_samples, n_samples))
-    for i in range(n_samples):
-        for j in range(i + 1, n_samples):
-            dist_matrix[i, j] = point_calc.calculate_move_ease_of_two_points_osm(
-                [cust_array[i, 0], cust_array[i, 1]],
-                [cust_array[j, 0], cust_array[j, 1]]
-            )
-            dist_matrix[j, i] = dist_matrix[i, j]
-
-    # DBSCANでクラスタリングする
-    epsilon = 0.1
-    min_samples = 10
-    pred = DBSCAN(eps=epsilon, min_samples=min_samples, metric='precomputed').fit(dist_matrix)
 
     df['cluster_id'] = pred
     df.head()
@@ -139,8 +100,15 @@ map_japan = folium.Map(
     zoom_start=6,
 )
 
-chatGPTStyle()
-# dbscan()
-# k_means()
+# DBSCAN法 eps: 密集具合, min_samples: 最低個数
+dbscan(0.09, 2)
+# k-means法 k_clusters: 何分割するか
+# k_means(15)
+
+# ただ家をマッピングする場合(円としてマッピング)
 # mark_as_circle()
-map_japan.save('home-map.html')
+
+# ただ家をマッピングする場合(家としてマッピング)
+# mark_as_marker()
+
+map_japan.save(f'home-map-{time.time()}.html')

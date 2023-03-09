@@ -2,3 +2,5 @@
 address-home-clsuter.iml
 home-map.html
 homes.csv
+/__pycache__/
+*.html
