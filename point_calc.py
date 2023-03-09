@@ -1,4 +1,4 @@
-import osmread
+import pyrosm
 from shapely.geometry import Point, LineString
 from geopy.distance import geodesic
 
@@ -17,16 +17,17 @@ def calculate_move_ease_of_two_points_osm(point_a, point_b):
     # 地点Aと地点Bを結ぶ直線を作成
     line = LineString([point_a, point_b])
 
-    # japan-latest.osm.pbfから地点Aと地点Bの間の道路データを取得
+    # pyrosmを使用して道路データを取得
+    osm = pyrosm.OSM(filepath)
     road_data = []
-    for entity in osmread.parse_file(filepath):
-        if isinstance(entity, osmread.Way) and 'highway' in entity.tags:
-            for i in range(len(entity.nodes) - 1):
-                node_a = (entity.nodes[i].lat, entity.nodes[i].lon)
-                node_b = (entity.nodes[i + 1].lat, entity.nodes[i + 1].lon)
-                road_line = LineString([Point(node_a), Point(node_b)])
-                if road_line.intersects(line):
-                    road_data.append((entity.tags['highway'], node_a, node_b))
+    for way_id in osm.get_ways(tags=dict(highway=True)):
+        way_nodes = osm.get_way_nodes(way_id)
+        for i in range(len(way_nodes) - 1):
+            node_a = osm.get_node(way_nodes[i])
+            node_b = osm.get_node(way_nodes[i + 1])
+            road_line = LineString([(node_a["lon"], node_a["lat"]), (node_b["lon"], node_b["lat"])])
+            if road_line.intersects(line):
+                road_data.append((way_id, node_a, node_b))
 
     # 地点Aから地点Bへの移動経路がなければ移動不可として-1.0を返す
     if not road_data:
@@ -35,9 +36,10 @@ def calculate_move_ease_of_two_points_osm(point_a, point_b):
     # 移動簡易性を計算
     road_length = 0
     for data in road_data:
-        road_length += geodesic(data[1], data[2]).km
+        way_length = osm.get_way_length(data[0])
+        road_length += way_length
     ease_of_move = 1.0 - (road_length * 0.1 / distance)
     if ease_of_move < 0:
         ease_of_move = 0.0
 
-    return road_length
+    return ease_of_move
